@@ -131,6 +131,28 @@ ensure_bun() {
 # ----------------------------------------------------------------------------
 # Panel: PostgreSQL + Redis
 # ----------------------------------------------------------------------------
+start_pg() {
+    # 1. real systemd (not a container)
+    if [[ -d /run/systemd/system ]] && command -v systemctl &>/dev/null; then
+        systemctl enable --now postgresql 2>/dev/null || true
+        return 0
+    fi
+    # 2. sysvinit / docker: "service" works via init.d
+    if command -v service &>/dev/null; then
+        service postgresql start >/dev/null 2>&1 && return 0
+    fi
+    # 3. Ubuntu/Debian pg_ctlcluster fallback
+    if command -v pg_ctlcluster &>/dev/null; then
+        local v; v=$(pg_lsclusters -h 2>/dev/null | awk '{print $1}' | head -1)
+        [[ -n "$v" ]] && { pg_ctlcluster "$v" main start >/dev/null 2>&1; return 0; }
+    fi
+    # 4. raw pg_ctl
+    if command -v pg_ctl &>/dev/null && command -v pg_config &>/dev/null; then
+        local d; d=$(pg_config --sysconfdir 2>/dev/null)
+        su postgres -c "pg_ctl -D ${d%/}/../var/lib/postgresql/main -l /tmp/pg.log start" >/dev/null 2>&1 || true
+    fi
+}
+
 setup_panel_db() {
     info "Installing PostgreSQL + Redis..."
     case "$PKG" in
@@ -140,14 +162,20 @@ setup_panel_db() {
         apk) pkg_install postgresql redis ;;
     esac
 
-    if command -v systemctl &>/dev/null; then
+    if [[ -d /run/systemd/system ]] && command -v systemctl &>/dev/null; then
         systemctl enable --now postgresql redis-server redis 2>/dev/null || true
     fi
-    for i in $(seq 1 20); do
-        su postgres -c "pg_isready" >/dev/null 2>&1 && break
+
+    start_pg
+
+    redis-cli ping >/dev/null 2>&1 || { info "Starting redis manually..."; redis-server --daemonize yes >/dev/null 2>&1 || true; }
+
+    local pg_ok=0
+    for i in $(seq 1 30); do
+        if su postgres -c "pg_isready" >/dev/null 2>&1; then pg_ok=1; break; fi
         sleep 1
     done
-    redis-cli ping >/dev/null 2>&1 || { info "Starting redis manually..."; redis-server --daemonize yes >/dev/null 2>&1 || true; }
+    [[ $pg_ok -eq 1 ]] || die "PostgreSQL is not accepting connections. Start it manually, then re-run."
     ok "PostgreSQL + Redis ready"
 }
 
