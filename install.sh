@@ -152,13 +152,14 @@ detect_pg_sock() {
 
 pg_psql() {
     # Run psql as the postgres user using the detected socket dir
+    local sql="$*"
     if [[ -n "$PG_SOCK" ]]; then
-        su postgres -c "psql -h $PG_SOCK $*"
+        su postgres -c "psql -h $PG_SOCK -c \"$sql\""
     else
         # Last resort: try both common socket dirs
-        su postgres -c "psql -h /var/run/postgresql $*" 2>/dev/null \
-            || su postgres -c "psql -h /tmp $*" 2>/dev/null \
-            || su postgres -c "psql $*"
+        su postgres -c "psql -h /var/run/postgresql -c \"$sql\"" 2>/dev/null \
+            || su postgres -c "psql -h /tmp -c \"$sql\"" 2>/dev/null \
+            || su postgres -c "psql -c \"$sql\""
     fi
 }
 
