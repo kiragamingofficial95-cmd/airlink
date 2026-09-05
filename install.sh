@@ -151,15 +151,15 @@ detect_pg_sock() {
 }
 
 pg_psql() {
-    # Run psql as the postgres user using the detected socket dir
+    # Run psql as the postgres user using the detected socket dir.
+    # Pass SQL via stdin to avoid nested quoting hell.
     local sql="$*"
     if [[ -n "$PG_SOCK" ]]; then
-        su postgres -c "psql -h $PG_SOCK -c \"$sql\""
+        printf '%s\n' "$sql" | su postgres -c "psql -h $PG_SOCK -q -t -A"
     else
-        # Last resort: try both common socket dirs
-        su postgres -c "psql -h /var/run/postgresql -c \"$sql\"" 2>/dev/null \
-            || su postgres -c "psql -h /tmp -c \"$sql\"" 2>/dev/null \
-            || su postgres -c "psql -c \"$sql\""
+        printf '%s\n' "$sql" | su postgres -c "psql -h /var/run/postgresql -q -t -A" 2>/dev/null \
+            || printf '%s\n' "$sql" | su postgres -c "psql -h /tmp -q -t -A" 2>/dev/null \
+            || printf '%s\n' "$sql" | su postgres -c "psql -q -t -A"
     fi
 }
 
@@ -270,13 +270,13 @@ install_panel() {
     local ip; ip=$(hostname -I 2>/dev/null | awk '{print $1}'); [[ -z "$ip" ]] && ip="127.0.0.1"
 
     info "Configuring database..."
-    pg_psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='airlink'" 2>/dev/null | grep -q 1 \
-        || pg_psql -c "CREATE ROLE airlink WITH LOGIN PASSWORD '$db_pass' SUPERUSER"
+    pg_psql "SELECT 1 FROM pg_roles WHERE rolname='airlink'" 2>/dev/null | grep -q 1 \
+        || pg_psql "CREATE ROLE airlink WITH LOGIN PASSWORD '$db_pass' SUPERUSER"
 
-    pg_psql -tAc "SELECT 1 FROM pg_database WHERE datname='airlink'" 2>/dev/null | grep -q 1 \
-        || pg_psql -c "CREATE DATABASE airlink OWNER airlink"
+    pg_psql "SELECT 1 FROM pg_database WHERE datname='airlink'" 2>/dev/null | grep -q 1 \
+        || pg_psql "CREATE DATABASE airlink OWNER airlink"
 
-    pg_psql -c "GRANT ALL PRIVILEGES ON DATABASE airlink TO airlink" 2>/dev/null || true
+    pg_psql "GRANT ALL PRIVILEGES ON DATABASE airlink TO airlink" 2>/dev/null || true
 
     # Rewrite DATABASE_URL / REDIS_URL in .env to match what's actually installed
     replace_env() { # key value
