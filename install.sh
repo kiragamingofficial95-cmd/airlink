@@ -299,6 +299,11 @@ install_panel() {
     pnpm exec prisma generate >/dev/null 2>&1 || die "prisma generate failed"
     pnpm exec prisma db push >/dev/null 2>&1 || die "prisma db push failed"
 
+    # Seed default roles (admin + user) so registration works
+    info "Seeding default roles..."
+    pg_psql "INSERT INTO \\\"Role\\\" (name, \\\"displayName\\\", permissions, \\\"isAdmin\\\", \\\"createdAt\\\", \\\"updatedAt\\\") VALUES ('admin', 'Administrator', '[]', true, NOW(), NOW()) ON CONFLICT (name) DO NOTHING"
+    pg_psql "INSERT INTO \\\"Role\\\" (name, \\\"displayName\\\", permissions, \\\"isAdmin\\\", \\\"createdAt\\\", \\\"updatedAt\\\") VALUES ('user', 'User', '[]', false, NOW(), NOW()) ON CONFLICT (name) DO NOTHING"
+
     info "Building panel..."
     pnpm run build >/dev/null 2>&1 || die "panel build failed"
 
