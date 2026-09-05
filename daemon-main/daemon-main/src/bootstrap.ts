@@ -1,0 +1,70 @@
+// this module runs its logic immediately when imported.
+// it must be the first import in app.ts so it runs before config.ts reads Bun.env.
+//
+// when bun starts, it loads .env automatically — but only if the file exists.
+// if .env is missing (first run), bun skips it. this module creates it from
+// the embedded template and manually injects the values into process.env
+// so config.ts sees them as if bun had loaded the file normally.
+
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+// bun --compile bundles these into the binary as static assets
+import envTemplate from '../example.env' with { type: 'text' };
+import config from './config';
+import { EMBEDDED_STORAGE } from './embedded';
+import { resolveDaemonPaths } from './paths';
+import { parseEnvFile } from './utils/parseEnv';
+
+const envPath = join(process.cwd(), '.env');
+
+if (!existsSync(envPath)) {
+  writeFileSync(envPath, envTemplate, 'utf-8');
+  const defaults = parseEnvFile(envTemplate);
+  for (const [key, val] of Object.entries(defaults)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = val;
+    }
+  }
+  process.stdout.write('no .env found, so I made one with defaults. tweak it and restart when ready.\n');
+}
+
+for (const dir of [
+  'logs',
+  'storage',
+  'storage/alc',
+  'storage/alc/files',
+  'volumes',
+  'backups',
+  '.airlinkd',
+  '.airlinkd/logs',
+]) {
+  mkdirSync(dir, { recursive: true });
+}
+
+// Resolve and validate all daemon paths after .env is loaded.
+config.paths = resolveDaemonPaths(process.cwd());
+
+// Extract embedded defaults on first run or when files are missing.
+
+function extractEmbeddedStorage(): string[] {
+  const extracted: string[] = [];
+  for (const asset of EMBEDDED_STORAGE) {
+    if (!existsSync(asset.path)) {
+      mkdirSync(dirname(asset.path), { recursive: true });
+      writeFileSync(asset.path, asset.contents, 'utf-8');
+      extracted.push(asset.path);
+    }
+  }
+  return extracted;
+}
+
+const firstRun = !existsSync('storage/config.json');
+const extracted = extractEmbeddedStorage();
+
+if (extracted.length > 0) {
+  process.stdout.write(
+    firstRun
+      ? `first run detected — extracted ${extracted.length} embedded default file(s):\n  ${extracted.join('\n  ')}\n`
+      : `restored missing storage file(s):\n  ${extracted.join('\n  ')}\n`,
+  );
+}

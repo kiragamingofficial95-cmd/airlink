@@ -1,0 +1,30 @@
+services:
+  airlink:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airlink-all
+    restart: unless-stopped
+    ports:
+      - "${PANEL_PORT:-3000}:3000"   # Panel web UI
+      - "${DAEMON_PORT:-3002}:3002"  # Daemon (node)
+      - "3004:3004"                  # Daemon SFTP
+    environment:
+      PANEL_URL: "${PANEL_URL:-127.0.0.1}"
+      PANEL_PORT: "3000"
+      PANEL_NAME: "${PANEL_NAME:-Airlink}"
+      SESSION_SECRET: "${SESSION_SECRET:-change_me}"
+      PGUSER: "${PGUSER:-airlink}"
+      PGPASSWORD: "${PGPASSWORD:-airlink}"
+      PGNAME: "${PGNAME:-airlink}"
+      DAEMON_KEY: "${DAEMON_KEY:-}"
+      DAEMON_PORT: "3002"
+    volumes:
+      # Give the daemon access to Docker so it can manage game-server containers.
+      # On Linux. On macOS/Windows (Docker Desktop) this is a bind to the VM socket.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - airlink-data:/var/lib/postgresql
+      - airlink-data:/var/lib/redis
+
+volumes:
+  airlink-data:

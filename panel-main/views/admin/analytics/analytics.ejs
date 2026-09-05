@@ -1,0 +1,314 @@
+<%- include('../../components/header', { title: 'Analytics' }) %>
+
+<main class="min-h-screen m-auto">
+  <div class="flex min-h-screen">
+    <div class="hidden lg:block w-60 shrink-0"><%- include('../../components/sidebar') %></div>
+<%- include('../../components/template') %>
+
+    <div id="page-content" class="flex-1 overflow-y-auto pt-0 pb-12">
+      <%- include('../../components/ui/breadcrumb', { items: [
+        { label: 'Admin' },
+        { label: 'Analytics' }
+      ] }) %>
+      <div class="al-page-header">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="al-page-title">Analytics</h1>
+            <p class="al-page-desc">Live data from the database and connected daemons.</p>
+          </div>
+          <button type="button" id="refreshBtn"
+            class="al-btn-secondary flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition">
+            <%- icon('refresh-cw', { id: 'refreshIcon', class: 'w-4 h-4', strokeWidth: 1.5 }) %>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div class="al-page-body" data-al-tabs data-tabs-default="servers" data-tabs-hash>
+        <!-- Tab bar -->
+        <div class="flex gap-1 mb-6 flex-wrap" role="tablist">
+          <button type="button" id="tab-servers"  aria-controls="panel-servers"  data-tab="servers"  tabindex="0"  class="tab-btn px-4 py-2.5 text-sm font-medium transition inline-flex items-center gap-2" role="tab" aria-selected="true"><%- icon('server', { class: 'size-4', strokeWidth: 1.5 }) %>Servers</button>
+          <button type="button" id="tab-nodes"    aria-controls="panel-nodes"    data-tab="nodes"    tabindex="-1" class="tab-btn px-4 py-2.5 text-sm font-medium transition inline-flex items-center gap-2" role="tab" aria-selected="false"><%- icon('network', { class: 'size-4', strokeWidth: 1.5 }) %>Nodes</button>
+          <button type="button" id="tab-activity" aria-controls="panel-activity" data-tab="activity" tabindex="-1" class="tab-btn px-4 py-2.5 text-sm font-medium transition inline-flex items-center gap-2" role="tab" aria-selected="false"><%- icon('activity', { class: 'size-4', strokeWidth: 1.5 }) %>Activity</button>
+          <button type="button" id="tab-logs"     aria-controls="panel-logs"     data-tab="logs"     tabindex="-1" class="tab-btn px-4 py-2.5 text-sm font-medium transition inline-flex items-center gap-2" role="tab" aria-selected="false"><%- icon('scroll-text', { class: 'size-4', strokeWidth: 1.5 }) %>Activity Logs</button>
+          <% if (user.role === 'owner') { %>
+          <button type="button" id="tab-system"   aria-controls="panel-system"   data-tab="system"   tabindex="-1" class="tab-btn px-4 py-2.5 text-sm font-medium transition inline-flex items-center gap-2" role="tab" aria-selected="false"><%- icon('shield-alert', { class: 'size-4', strokeWidth: 1.5 }) %>System Logs</button>
+          <% } %>
+        </div>
+
+        <!-- Loading state -->
+        <div id="loading-state" class="flex items-center gap-3 py-12" style="color:var(--theme-text-muted)">
+          <%- icon('loader-circle', { class: 'animate-spin w-5 h-5', strokeWidth: 2 }) %>
+          <span class="text-sm">Loading analytics…</span>
+        </div>
+
+        <!-- ── SERVERS ─────────────────────────────────────────────────────── -->
+        <div id="panel-servers" data-tab-panel="servers" role="tabpanel" aria-labelledby="tab-servers" class="tab-panel space-y-6">
+
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Total servers</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="sv-total">—</p>
+              <p class="text-xs mt-1" style="color:var(--theme-text-muted)" id="sv-suspended-label"></p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Allocated RAM</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="sv-ram">—</p>
+              <p class="text-xs mt-1" style="color:var(--theme-text-muted)">across all servers</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Allocated CPU</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="sv-cpu">—</p>
+              <p class="text-xs mt-1" style="color:var(--theme-text-muted)">total allocation</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Allocated disk</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="sv-storage">—</p>
+              <p class="text-xs mt-1" style="color:var(--theme-text-muted)">total allocation</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            <!-- Top images -->
+            <div class="al-card p-5">
+              <p class="text-sm font-medium mb-4" style="color:var(--theme-text-strong)">Images in use</p>
+              <div id="sv-images" class="space-y-3"></div>
+            </div>
+
+            <!-- Heaviest servers -->
+            <div class="al-card overflow-hidden">
+              <h2 class="al-card-header">Highest allocated servers</h2>
+              <div class="divide-y divide-[var(--theme-border)]" id="sv-heavy"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── NODES ──────────────────────────────────────────────────────── -->
+        <div id="panel-nodes" data-tab-panel="nodes" role="tabpanel" aria-labelledby="tab-nodes" class="tab-panel space-y-4" hidden>
+
+          <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Nodes</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="nd-total">—</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Online</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-success)" id="nd-online">—</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Offline</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-danger)" id="nd-offline">—</p>
+            </div>
+          </div>
+
+          <div id="nd-list" class="space-y-3"></div>
+        </div>
+
+        <!-- ── ACTIVITY ────────────────────────────────────────────────────── -->
+        <div id="panel-activity" data-tab-panel="activity" role="tabpanel" aria-labelledby="tab-activity" class="tab-panel space-y-6" hidden>
+
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Users</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="ac-users">—</p>
+              <p class="text-xs mt-1" style="color:var(--theme-text-muted)" id="ac-admins-label"></p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Images installed</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="ac-images">—</p>
+              <p class="text-xs mt-1" style="color:var(--theme-text-muted)">in library</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Logins (30d)</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="ac-logins">—</p>
+              <p class="text-xs mt-1" style="color:var(--theme-text-muted)">panel sessions</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Avg/day</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="ac-avg">—</p>
+              <p class="text-xs mt-1" style="color:var(--theme-text-muted)">logins per day</p>
+            </div>
+          </div>
+
+          <!-- Login chart -->
+          <div class="al-card p-5">
+            <p class="text-sm font-medium mb-4" style="color:var(--theme-text-strong)">Login activity — last 30 days</p>
+            <div class="relative h-44">
+              <canvas id="loginChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Recent logins -->
+          <div class="al-card overflow-hidden">
+            <h2 class="al-card-header">Recent logins</h2>
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm divide-y divide-[var(--theme-border)]">
+                <thead style="background:var(--theme-bg-secondary)">
+                  <tr>
+                    <th class="px-5 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">User ID</th>
+                    <th class="px-5 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">IP Address</th>
+                    <th class="px-5 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">Time</th>
+                  </tr>
+                </thead>
+                <tbody id="ac-logins-table" class="divide-y divide-[var(--theme-border)]"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ACTIVITY LOGS ──────────────────────────────────────────────── -->
+        <div id="panel-logs" data-tab-panel="logs" role="tabpanel" aria-labelledby="tab-logs" class="tab-panel space-y-6" hidden>
+
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Total events</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="log-total">—</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Last 24h</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-info)" id="log-24h">—</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Last 7 days</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-success)" id="log-7d">—</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Categories</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="log-categories">—</p>
+            </div>
+          </div>
+
+          <!-- Events over time chart -->
+          <div class="al-card p-5">
+            <p class="text-sm font-medium mb-4" style="color:var(--theme-text-strong)">Events — last 30 days</p>
+            <div class="relative h-44">
+              <canvas id="activityChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Filters -->
+          <div class="al-card p-4">
+            <div class="flex flex-wrap gap-3 items-center">
+              <select id="log-filter-category" class="al-select text-sm px-3 py-1.5">
+                <option value="">All categories</option>
+                <option value="user_action">User Action</option>
+                <option value="system_error">System Error</option>
+                <option value="security">Security</option>
+                <option value="server_lifecycle">Server Lifecycle</option>
+              </select>
+              <select id="log-filter-severity" class="al-select text-sm px-3 py-1.5">
+                <option value="">All severities</option>
+                <option value="info">Info</option>
+                <option value="warning">Warning</option>
+                <option value="error">Error</option>
+                <option value="critical">Critical</option>
+              </select>
+              <input id="log-filter-search" type="text" placeholder="Search events…" class="al-input text-sm px-3 py-1.5" />
+              <button id="log-filter-apply" class="al-btn-primary text-sm px-3 py-1.5">Apply</button>
+            </div>
+          </div>
+
+          <!-- Activity feed -->
+          <div class="al-card overflow-hidden">
+            <h2 class="al-card-header">Recent activity</h2>
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm divide-y divide-[var(--theme-border)]">
+                <thead style="background:var(--theme-bg-secondary)">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">Time</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">User</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">Event</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">Category</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">Severity</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">IP</th>
+                  </tr>
+                </thead>
+                <tbody id="log-feed-table" class="divide-y divide-[var(--theme-border)]"></tbody>
+              </table>
+            </div>
+            <div id="log-pagination" class="flex items-center justify-between px-5 py-3 border-t border-[var(--theme-border)]"></div>
+          </div>
+        </div>
+
+        <!-- ── SYSTEM LOGS (owner-only) ──────────────────────────────────── -->
+        <% if (user.role === 'owner') { %>
+        <div id="panel-system" data-tab-panel="system" role="tabpanel" aria-labelledby="tab-system" class="tab-panel space-y-6" hidden>
+
+          <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Total system logs</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="sys-total">—</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Last 24h</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-info)" id="sys-24h">—</p>
+            </div>
+            <div class="al-card px-4 py-4">
+              <p class="al-section-label">Components</p>
+              <p class="text-2xl font-semibold tabular-nums" style="color:var(--theme-text-strong)" id="sys-components">—</p>
+            </div>
+          </div>
+
+          <!-- Severity breakdown chart -->
+          <div class="al-card p-5">
+            <p class="text-sm font-medium mb-4" style="color:var(--theme-text-strong)">System logs by severity</p>
+            <div class="relative h-44">
+              <canvas id="systemChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Filters -->
+          <div class="al-card p-4">
+            <div class="flex flex-wrap gap-3 items-center">
+              <select id="sys-filter-severity" class="al-select text-sm px-3 py-1.5">
+                <option value="">All severities</option>
+                <option value="warning">Warning</option>
+                <option value="error">Error</option>
+                <option value="critical">Critical</option>
+              </select>
+              <select id="sys-filter-component" class="al-select text-sm px-3 py-1.5">
+                <option value="">All components</option>
+                <option value="api">API</option>
+                <option value="daemon">Daemon</option>
+                <option value="database">Database</option>
+                <option value="redis">Redis</option>
+                <option value="scheduler">Scheduler</option>
+              </select>
+              <input id="sys-filter-search" type="text" placeholder="Search logs…" class="al-input text-sm px-3 py-1.5" />
+              <button id="sys-filter-apply" class="al-btn-primary text-sm px-3 py-1.5">Apply</button>
+            </div>
+          </div>
+
+          <!-- System log table -->
+          <div class="al-card overflow-hidden">
+            <h2 class="al-card-header">System logs</h2>
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm divide-y divide-[var(--theme-border)]">
+                <thead style="background:var(--theme-bg-secondary)">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">Time</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">Severity</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">Component</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium" style="color:var(--theme-text-muted)">Message</th>
+                  </tr>
+                </thead>
+                <tbody id="sys-log-table" class="divide-y divide-[var(--theme-border)]"></tbody>
+              </table>
+            </div>
+            <div id="sys-pagination" class="flex items-center justify-between px-5 py-3 border-t border-[var(--theme-border)]"></div>
+          </div>
+        </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</main>
+
+
+<script nonce="<%- nonce %>" src="/vendor/chart.js/dist/chart.js"></script>
+
+<script nonce="<%- nonce %>" src="/javascript/admin/admin-analytics.js?v=6"></script>
+
+<%- include('../../components/footer') %>

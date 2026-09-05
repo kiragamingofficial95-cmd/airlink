@@ -1,0 +1,55 @@
+# Node.js modules
+node_modules/
+
+# Build outputs
+dist/
+public/styles.css
+
+# Prisma files
+storage/prisma/*
+!storage/prisma/schema.prisma
+!storage/prisma/migrations/
+storage/src/generated/
+
+# Lock files
+/package-lock.json
+/pnpm-lock.yaml
+/yarn.lock
+/bun.lockb
+bun.lock
+.DS_Store
+
+# Logs
+/logs
+*.log
+
+# Coverage reports
+coverage/
+
+# .env
+.env
+*.env.*
+
+# Database
+storage/dev.db
+storage/dev.db-wal
+storage/dev.db-shm
+
+# Redis dump
+dump.rdb
+
+# Storage (keep structure, ignore data)
+storage/eggs
+storage/uploads/
+storage/themes/user/
+
+# Local tooling / agent work dirs (not project source)
+.agents/
+.claude/
+.codex/
+.impeccable/
+.opencode/
+agent/
+backups/
+docs/tmp/
+/dist/*.map

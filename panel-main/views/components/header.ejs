@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html class="h-full js-loading" lang="<%= (req && req.lang) || 'en' %>">
+<%
+// Overview and Credits own their backgrounds — never show the panel
+// wallpaper there so their existing UX is preserved unchanged.
+const wallpaperExcluded = req && req.path && (
+  req.path.startsWith('/admin/overview') ||
+  req.path.startsWith('/credits')
+);
+%>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <% if (typeof csrfToken !== 'undefined') { %>
+    <meta name="csrf-token" content="<%= csrfToken %>">
+    <% } %>
+    <title><%= settings.title %> - <%= title %></title>
+    <script nonce="<%- nonce %>">
+      (function(){
+        <% const isLightTheme = settings.theme === 'light' || (settings.theme && settings.theme.includes('light')); %>
+        <% if (!isLightTheme) { %>
+        document.documentElement.classList.add('dark');
+        <% } %>
+      })();
+    </script>
+    <link rel="stylesheet" href="/styles.css?v=8">
+    <link rel="stylesheet" href="/styles/layout-animations.css?v=8">
+    <link rel="stylesheet" href="/styles/motion.css?v=8">
+    <link rel="icon" href="<%= settings.favicon && settings.favicon.startsWith('/') ? settings.favicon : '/favicon.ico' %>" type="image/x-icon">
+    <link rel="shortcut icon" href="<%= settings.favicon && settings.favicon.startsWith('/') ? settings.favicon : '/favicon.ico' %>" type="image/x-icon">
+    <!-- Default themes — always loaded as base layer -->
+    <link rel="stylesheet" href="/themes/default-light.css">
+    <link rel="stylesheet" href="/themes/default-dark.css">
+    <!-- Selected theme override -->
+    <% if (settings.theme && settings.theme !== 'default' && settings.theme !== 'light' && settings.theme !== 'dark') { %>
+    <link rel="stylesheet" href="<%= settings.theme %>" id="theme-css">
+    <% } %>
+    <link rel="stylesheet" href="/vendor/@fontsource-variable/inter/index.css">
+    <% if (Array.isArray(typeof extraStyles !== 'undefined' ? extraStyles : undefined)) { %>
+      <% for (const stylesheet of extraStyles) { %>
+    <link rel="stylesheet" href="<%= stylesheet %>">
+      <% } %>
+    <% } %>
+    <!-- Session/CSRF support -->
+    <script nonce="<%- nonce %>">window.__sessionExpiredMsg = '<%= (req.translations && req.translations.sessionExpired) || "Your session expired. Please sign in again." %>';</script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/csrf.js?v=8"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/al-icon.js?v=8"></script>
+
+    <!-- Vendor bundles -->
+    <script nonce="<%- nonce %>" defer src="/vendor/@tanstack/query-core/build/lib/index.js"></script>
+    <script nonce="<%- nonce %>" defer src="/vendor/reconnecting-websocket/dist/reconnecting-websocket-iife.min.js"></script>
+
+    <!-- htmx -->
+    <script nonce="<%- nonce %>" defer src="/vendor/htmx.org/dist/htmx.min.js?v=2.0.10"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/htmx-bootstrap.js?v=1"></script>
+
+    <!-- Alpine.js -->
+    <script nonce="<%- nonce %>" defer src="/vendor/alpinejs/dist/cdn.min.js?v=3.16.3"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/alpine-bootstrap.js?v=2"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/auto-save.js?v=1"></script>
+
+    <!-- Shared UI components -->
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/format-switcher.js?v=8"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/animations.js?v=8"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/custom-select.js?v=8"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/page-loader.js?v=8"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/checkbox-anim.js?v=8"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/layout-animations.js?v=8"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/al-table.js?v=7"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/al-tabs.js?v=1"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/al-dialog.js?v=1"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/al-action.js?v=1"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/al-field.js?v=1"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/al-state.js?v=1"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/islands.js?v=1"></script>
+    <script nonce="<%- nonce %>" defer src="/javascript/shared/data-layer.js?v=1"></script>
+    <style>
+      @keyframes al-page-loader-sweep {
+        from { transform: translateX(-110%); }
+        to { transform: translateX(365%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #al-page-loader { animation: none !important; transform: translateX(0) !important; }
+      }
+    </style>
+    <style>
+      * { scrollbar-width: thin; scrollbar-color: var(--theme-border) transparent; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-thumb { background: var(--theme-border); border-radius: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      html, body { transition: background-color 0.25s ease-in, color 0.25s ease-in; background: var(--theme-bg); color: var(--theme-text); }
+      /* Safe area handling for notched devices */
+      body { 
+        padding-top: env(safe-area-inset-top);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+      }
+      /* Mobile bottom bar spacing */
+      @media (max-width: 1023px) {
+        #page-content, #server-page-body { padding-bottom: 64px; }
+      }
+      /* Pre-hide animatable content before JS runs so there's no flash-then-hide jitter */
+      .js-loading #page-content > *:not(.mobile-top-bar):not(.mobile-bottom-nav):not(.mobile-more-sheet):not([style*="position: fixed"]),
+      .js-loading #server-page-body > * {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+    </style>
+</head>
+<body style="font-family: 'Inter Variable';<%= (settings.panelWallpaper && !wallpaperExcluded) ? `--al-wallpaper-image:url('${settings.panelWallpaper}');` : '' %>" class="h-full<%= (settings.panelWallpaper && !wallpaperExcluded) ? ' al-wallpaper' : '' %>">
+<% if (settings.panelWallpaper && !wallpaperExcluded) { %>
+<!-- Panel wallpaper layer — fixed behind all surfaces. Excluded pages (Overview, Credits) never render this. -->
+<div id="al-wallpaper-layer" aria-hidden="true"></div>
+<% } %>
+
+<a href="#page-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[99999] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-[var(--theme-text-strong)] focus:text-[var(--theme-bg)] focus:text-sm focus:font-medium focus:shadow-lg">Skip to main content</a>
+
+<!-- The indeterminate page loading line is created by page-loader.js. -->
+<!-- Theme initialization: external module replaces inline script -->
+<script nonce="<%- nonce %>" src="/javascript/shared/theme-init.js?v=1"></script>
+<%- include("./bottomNav") %>
+<%- include("./modal") %>
+<script nonce="<%- nonce %>" src="/javascript/shared/toast-store.js?v=1"></script>
+<%- include("./toast") %>
+<script nonce="<%- nonce %>" src="/javascript/shared/escape.js?v=1"></script>
+<script nonce="<%- nonce %>" src="/javascript/shared/api.js?v=1"></script>

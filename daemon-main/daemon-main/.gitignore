@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Build output
+build/
+dist/
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+volumes/
+backups/
+storage/alc/files/*
+!/storage/alc/files/.gitignore
+storage/systemStats.json
+storage/alc/locations.json
+storage/alc.json
+storage/install_logs.json
+storage/containerConfigs/*
+storage/sftp_host_ed25519
+
+# Environment
+.env
+.env.*
+
+# Lock files
+package-lock.json
+bun.lockb
+bun.lock
+
+# Coverage
+coverage/
+*.lcov
+
+# TypeScript
+*.tsbuildinfo
+
+# OS
+.DS_Store
+
+# Misc
+*.backup
+*.tmp
+*.temp

@@ -1,0 +1,362 @@
+<%- include('../../components/header', { title: req.translations.adminEditUserTitle || 'Edit User' }) %>
+
+<main class="min-h-screen">
+  <div class="flex min-h-screen">
+    <div class="hidden lg:block w-60 shrink-0">
+      <%- include('../../components/sidebar') %>
+    </div>
+<%- include('../../components/template') %>
+    <div id="page-content" class="flex-1 overflow-y-auto pt-0 pb-12">
+      <%- include('../../components/ui/breadcrumb', { items: [
+        { label: 'Admin' },
+        { label: 'Users', href: '/admin/users' },
+        { label: 'Edit' }
+      ] }) %>
+      <div class="al-page-header flex items-start justify-between gap-4">
+        <div>
+          <h1 class="al-page-title"><%= req.translations.adminEditUserTitle || 'Edit User' %></h1>
+          <p class="al-page-desc"><%= req.translations.adminEditUserText || 'Edit user details and permissions.' %></p>
+        </div>
+        <div class="flex gap-2 shrink-0 items-center">
+          <a href="/admin/users" class="al-btn-secondary">Back to Users</a>
+          <button type="submit" form="editUserForm" class="al-btn-primary" x-data x-bind:disabled="$root.querySelector && false"><%- icon('save', { class: 'size-4', strokeWidth: 1.5 }) %><%= req.translations.saveChanges || 'Save Changes' %></button>
+        </div>
+      </div>
+
+      <div class="al-page-body space-y-5" x-data="adminUserEdit()" x-init="init()">
+        <template x-if="error">
+          <div class="rounded-xl px-4 py-3 text-sm" style="background:var(--theme-danger-bg);border:1px solid color-mix(in srgb, var(--theme-danger) 25%, transparent);color:var(--theme-danger)" x-text="error"></div>
+        </template>
+        <form id="editUserForm" @submit.prevent="submit()" class="space-y-5">
+          <div class="al-card">
+            <h2 class="al-card-header"><%= req.translations.userInformation || 'User Information' %></h2>
+            <div class="flex items-center gap-4 mb-5 pb-5 border-b" style="border-color:var(--theme-border)">
+              <img class="h-12 w-12 rounded-xl object-cover shrink-0 border" style="border-color:var(--theme-border)" src="<%= dataUser.avatar ? dataUser.avatar : '/avatar/' + encodeURIComponent(dataUser.username) %>" alt="<%= dataUser.username %>">
+              <div>
+                <p class="text-sm font-semibold" style="color:var(--theme-text-strong)"><%= dataUser.username %></p>
+                <p class="text-xs" style="color:var(--theme-text-muted)"><%= dataUser.email %></p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label for="username" class="flex items-center gap-1.5 text-sm font-medium mb-2" style="color:var(--theme-text-strong)">
+                  <%- icon('user', { size: 14, class: 'shrink-0' }) %>
+                  <%= req.translations.username || 'Username' %>
+                </label>
+                <input type="text" x-model="form.username" class="al-input" required>
+              </div>
+
+              <div>
+                <label for="email" class="flex items-center gap-1.5 text-sm font-medium mb-2" style="color:var(--theme-text-strong)">
+                  <%- icon('mail', { size: 14, class: 'shrink-0' }) %>
+                  <%= req.translations.email || 'Email' %>
+                </label>
+                <input type="email" x-model="form.email" class="al-input" required>
+              </div>
+
+              <div class="md:col-span-2">
+                <label for="description" class="block text-sm font-medium mb-2" style="color:var(--theme-text-strong)">
+                  <%= req.translations.description || 'Description' %>
+                </label>
+                <textarea x-model="form.description" rows="3" class="al-input"><%= dataUser.description || '' %></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="al-card">
+            <h2 class="al-card-header"><%= req.translations.security || 'Security' %></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label for="password" class="flex items-center gap-1.5 text-sm font-medium mb-2" style="color:var(--theme-text-strong)">
+                  <%- icon('lock', { size: 14, class: 'shrink-0' }) %>
+                  <%= req.translations.newPassword || 'New Password' %> <span class="text-xs" style="color:var(--theme-text-muted)">(<%= req.translations.leaveBlankToKeep || 'Leave blank to keep current password' %>)</span>
+                </label>
+                <input type="password" x-model="form.password" class="al-input">
+              </div>
+
+              <div>
+                <label for="confirmPassword" class="block text-sm font-medium mb-2" style="color:var(--theme-text-strong)">
+                  <%= req.translations.confirmPassword || 'Confirm Password' %>
+                </label>
+                <input type="password" x-model="form.confirmPassword" class="al-input">
+              </div>
+
+              <div class="md:col-span-2">
+                <div class="p-4 rounded-xl border w-full" style="background:var(--theme-bg-secondary);border-color:var(--theme-border)">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <h3 class="text-sm font-medium" style="color:var(--theme-text-strong)">
+                        <%= req.translations.role || 'Role' %>
+                      </h3>
+                      <p class="text-xs mt-1" style="color:var(--theme-text-muted)">
+                        <%= req.translations.roleDescription || 'Owner and admin roles are signaled by isAdmin below. Privileged normally have not admin powers but get expanded settings.' %>
+                      </p>
+                    </div>
+                    <select x-model="form.role" class="al-input w-44" :disabled="form.role === 'owner'">
+                      <template x-for="r in roles" :key="r.name">
+                        <option :value="r.name" x-text="r.displayName" :selected="r.name === form.role" :disabled="r.name === 'owner' && form.role !== 'owner'"></option>
+                      </template>
+                    </select>
+                    <% if (dataUser.role === 'owner') { %>
+                      <p class="text-xs mt-2" style="color:var(--theme-text-muted)">Owner role cannot be changed. Use Transfer Ownership to assign a new owner.</p>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+
+              <div class="md:col-span-2">
+                <div class="p-4 rounded-xl border w-full" style="background:var(--theme-bg-secondary);border-color:var(--theme-border)">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <h3 class="text-sm font-medium" style="color:var(--theme-text-strong)">
+                        <%= req.translations.adminStatus || 'Administrator Status' %>
+                      </h3>
+                      <p class="text-xs mt-1" style="color:var(--theme-text-muted)">
+                        <%= req.translations.adminDescription || 'Administrators have full access to manage all aspects of the system.' %>
+                      </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0" <% if (dataUser.role === 'owner') { %>title="Owner is always an administrator"<% } %>>
+                      <input type="checkbox" x-model="form.isAdmin" class="sr-only peer" <% if (dataUser.role === 'owner') { %>disabled<% } %>>
+                      <div class="al-toggle-track"><div class="al-toggle-dot"></div></div>
+                      <span class="ms-3 text-sm font-medium" style="color:var(--theme-text-strong)" x-text="form.isAdmin ? '<%= req.translations.enabled || 'Enabled' %>' : '<%= req.translations.disabled || 'Disabled' %>'"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="al-card">
+            <h2 class="al-card-header">Server Limits</h2>
+            <p class="text-xs mb-4" style="color:var(--theme-text-muted)">Leave blank to use the global defaults set in Admin &rarr; Settings &rarr; Servers.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label class="flex items-center gap-1.5 text-sm font-medium mb-2" style="color:var(--theme-text-strong)"><%- icon('sliders-horizontal', { size: 14, class: 'shrink-0' }) %> Server limit</label>
+                <input type="number" x-model.number="form.serverLimit" min="0" max="100" placeholder="Use global default" class="al-input">
+                <p class="mt-1 text-xs" style="color:var(--theme-text-muted)">Max servers this user can create. 0 = cannot create.</p>
+              </div>
+              <div>
+                <label class="flex items-center gap-1.5 text-sm font-medium mb-2" style="color:var(--theme-text-strong)"><%- icon('memory-stick', { size: 14, class: 'shrink-0' }) %> Max memory</label>
+                <input type="hidden" :value="form.maxMemory">
+                <div class="flex items-stretch gap-0">
+                  <input type="number" x-model.number="form.maxMemoryDisplay" min="128" max="65536" placeholder="Use global default"
+                    class="al-input rounded-l-xl flex-1 border-r-0">
+                  <button type="button" class="al-format-switcher" data-format-switcher
+                    data-display="maxMemoryDisplay" data-hidden="maxMemory"
+                    data-units="1:MB,1024:GB" data-default-unit="MB">MB</button>
+                </div>
+              </div>
+              <div>
+                <label class="flex items-center gap-1.5 text-sm font-medium mb-2" style="color:var(--theme-text-strong)"><%- icon('cpu', { size: 14, class: 'shrink-0' }) %> Max CPU <span class="font-normal text-xs" style="color:var(--theme-text-muted)">(%)</span></label>
+                <input type="number" x-model.number="form.maxCpu" min="10" max="10000" placeholder="Use global default" class="al-input">
+              </div>
+              <div>
+                <label class="flex items-center gap-1.5 text-sm font-medium mb-2" style="color:var(--theme-text-strong)"><%- icon('database', { size: 14, class: 'shrink-0' }) %> Max storage</label>
+                <input type="hidden" :value="form.maxStorage">
+                <div class="flex items-stretch gap-0">
+                  <input type="number" x-model.number="form.maxStorageDisplay" min="1" max="10000" placeholder="Use global default"
+                    class="al-input rounded-l-xl flex-1 border-r-0">
+                  <button type="button" class="al-format-switcher" data-format-switcher
+                    data-display="maxStorageDisplay" data-hidden="maxStorage"
+                    data-units="1:MB,1024:GB" data-default-unit="MB">MB</button>
+                </div>
+              </div>
+              <div>
+                <label class="flex items-center gap-1.5 text-sm font-medium mb-2" style="color:var(--theme-text-strong)"><%- icon('server', { size: 14, class: 'shrink-0' }) %> Max databases</label>
+                <input type="number" x-model.number="form.maxDatabases" min="0" max="100000" placeholder="Use global default" class="al-input">
+                <p class="mt-1 text-xs" style="color:var(--theme-text-muted)">Total databases across all servers. 0 = unlimited.</p>
+              </div>
+            </div>
+          </div>
+
+          <% if (canTransferOwner) { %>
+          <div class="al-card border-red-600/20">
+            <h2 class="al-card-header" style="color:#ef4444">Transfer Ownership</h2>
+            <p class="text-xs mb-4" style="color:var(--theme-text-muted)">You are the owner. Hand over ownership of this panel to <%= dataUser.username %>. The current owner becomes an admin.</p>
+            <div class="flex items-center gap-3">
+              <button type="button" @click="transferOwner()" class="al-btn-danger">
+                <%- icon('shield-alert', { size: 16 }) %>
+                Transfer ownership to <%= dataUser.username %>
+              </button>
+              <span class="text-xs" style="color:var(--theme-text-muted)">This cannot be undone without transferring back.</span>
+            </div>
+          </div>
+          <% } %>
+
+          <div class="al-card">
+            <h2 class="al-card-header">Onboarding</h2>
+            <div class="p-4">
+              <p class="text-xs mb-4" style="color:var(--theme-text-muted)">Reset this user's onboarding state so they see the tutorial again on next login.</p>
+              <button type="button" @click="resetOnboarding()" class="al-btn-secondary">
+                <%- icon('rotate-ccw', { size: 16 }) %> Reset Onboarding
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+
+<%- include('../../components/loadingPopup') %>
+
+<style>
+#editUserForm .al-card-header { border-radius: 12px 12px 0 0; overflow: hidden; margin-bottom: 16px; }
+</style>
+
+<script nonce="<%- nonce %>">
+function adminUserEdit() {
+  return {
+    saving: false,
+    error: '',
+    roles: [],
+    userId: <%= dataUser.id %>,
+    form: {
+      username: '<%= dataUser.username %>',
+      email: '<%= dataUser.email %>',
+      description: '<%= (dataUser.description || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'") %>',
+      password: '',
+      confirmPassword: '',
+      role: '<%= dataUser.role || (dataUser.isAdmin ? "admin" : "user") %>',
+      isAdmin: <%= dataUser.isAdmin ? 'true' : 'false' %>,
+      serverLimit: <%= dataUser.serverLimit ?? 'null' %>,
+      maxMemory: <%= dataUser.maxMemory ?? 'null' %>,
+      maxMemoryDisplay: null,
+      maxCpu: <%= dataUser.maxCpu ?? 'null' %>,
+      maxStorage: <%= dataUser.maxStorage ?? 'null' %>,
+      maxStorageDisplay: null,
+      maxDatabases: <%= dataUser.maxDatabases ?? 'null' %>,
+    },
+    async init() {
+      try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const res = await fetch('/api/v2/admin/roles', { headers: { 'CSRF-Token': csrfToken } });
+        if (res.ok) {
+          const result = await res.json();
+          this.roles = result.data || result;
+        }
+      } catch (e) {
+        this.roles = [
+          { name: 'user', displayName: 'User' },
+          { name: 'privileged', displayName: 'Privileged User' },
+          { name: 'admin', displayName: 'Administrator' },
+          { name: 'owner', displayName: 'Owner' },
+        ];
+      }
+    },
+    async submit() {
+      if (this.saving) return;
+      this.error = '';
+
+      if (this.form.password && this.form.password !== this.form.confirmPassword) {
+        this.error = '<%= req.translations.passwordsDoNotMatch || 'Passwords do not match' %>';
+        return;
+      }
+
+      this.saving = true;
+      const loader = showLoadingPopup('<%= req.translations.updatingUser || 'Updating User' %>', '<%= req.translations.processingUserUpdate || 'Processing user update...' %>');
+      loader.updateProgress(20, '<%= req.translations.sendingUserInformation || 'Sending user information...' %>');
+
+      try {
+        const data = {
+          username: this.form.username,
+          email: this.form.email,
+          description: this.form.description,
+          role: this.form.role,
+          isAdmin: this.form.isAdmin,
+          password: this.form.password || undefined,
+          serverLimit: this.form.serverLimit,
+          maxMemory: this.form.maxMemoryDisplay !== null && this.form.maxMemoryDisplay !== '' ? parseInt(this.form.maxMemoryDisplay, 10) : this.form.maxMemory,
+          maxCpu: this.form.maxCpu,
+          maxStorage: this.form.maxStorageDisplay !== null && this.form.maxStorageDisplay !== '' ? parseInt(this.form.maxStorageDisplay, 10) : this.form.maxStorage,
+          maxDatabases: this.form.maxDatabases,
+        };
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const res = await fetch('/api/v2/admin/users/' + this.userId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrfToken },
+          body: JSON.stringify(data),
+        });
+
+        const result = await res.json();
+        if (result.error) {
+          loader.close();
+          this.error = result.error;
+        } else {
+          loader.updateProgress(100, '<%= req.translations.userUpdatedSuccessfully || 'User updated successfully!' %>');
+          setTimeout(() => {
+            loader.close();
+            showToast(result.message || '<%= req.translations.userUpdatedSuccessfully || 'User updated successfully!' %>', 'success');
+            setTimeout(() => { window.location.href = '/admin/users'; }, 1000);
+          }, 500);
+        }
+      } catch (e) {
+        loader.close();
+        this.error = '<%= req.translations.errorUpdatingUser || 'Error updating user' %>';
+      } finally {
+        this.saving = false;
+      }
+    },
+    async transferOwner() {
+      window.modal.confirm({
+        title: '<%= req.translations.transferOwnerTitle || 'Transfer ownership?' %>',
+        body: '<%= req.translations.transferOwnerConfirm || 'This will make the current owner an admin. Continue?' %>',
+        danger: true,
+        confirmLabel: 'Transfer',
+        onConfirm: async () => {
+          const loader = showLoadingPopup('<%= req.translations.transferringOwnership || 'Transferring ownership...' %>', '');
+          try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const res = await fetch('/api/v2/admin/users/' + this.userId + '/transfer', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrfToken },
+            });
+            const result = await res.json();
+            loader.close();
+            if (result.error) {
+              showToast(result.error, 'error');
+            } else {
+              showToast(result.message || '<%= req.translations.transferringOwnership || 'Transferring ownership...' %>', 'success');
+              setTimeout(() => { window.location.href = '/admin/users'; }, 1000);
+            }
+          } catch (e) {
+            loader.close();
+            showToast('<%= req.translations.errorUpdatingUser || 'Error updating user' %>', 'error');
+          }
+        }
+      });
+    },
+    async resetOnboarding() {
+      window.modal.confirm({
+        title: 'Reset onboarding?',
+        body: 'This user will see the onboarding tutorial again on their next login.',
+        danger: false,
+        confirmLabel: 'Reset',
+        onConfirm: async () => {
+          const loader = showLoadingPopup('Resetting onboarding...', '');
+          try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const res = await fetch('/api/v2/admin/users/' + this.userId + '/onboarding/reset', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrfToken },
+            });
+            const result = await res.json();
+            loader.close();
+            if (result.error) {
+              showToast(result.error, 'error');
+            } else {
+              showToast('Onboarding reset successfully.', 'success');
+            }
+          } catch (e) {
+            loader.close();
+            showToast('Error resetting onboarding.', 'error');
+          }
+        }
+      });
+    }
+  };
+}
+</script>
+
+<%- include('../../components/footer') %>

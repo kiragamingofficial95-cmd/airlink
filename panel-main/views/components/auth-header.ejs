@@ -1,0 +1,43 @@
+<!--
+  Minimal auth header - without theme toggle, bottom nav, or page loader.
+  Used by login.ejs and register.ejs.
+-->
+<!DOCTYPE html>
+<html class="h-full" lang="<%= (typeof req !== 'undefined' && req && req.lang) || 'en' %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <% if (typeof csrfToken !== 'undefined') { %>
+    <meta name="csrf-token" content="<%= csrfToken %>">
+    <% } %>
+    <title><%= settings.title %> - <%= title %></title>
+    <script nonce="<%- nonce %>">
+      (function(){
+        <% const isLightTheme = settings.theme === 'light' || (settings.theme && settings.theme.includes('light')); %>
+        <% if (!isLightTheme) { %>
+        document.documentElement.classList.add('dark');
+        <% } %>
+      })();
+    </script>
+    <link rel="icon" href="<%= settings.favicon && settings.favicon.startsWith('/') ? settings.favicon : '/favicon.ico' %>" type="image/x-icon">
+    <link rel="shortcut icon" href="<%= settings.favicon && settings.favicon.startsWith('/') ? settings.favicon : '/favicon.ico' %>" type="image/x-icon">
+    <link rel="stylesheet" href="/themes/default-light.css">
+    <link rel="stylesheet" href="/themes/default-dark.css">
+    <% if (settings.theme && settings.theme !== 'default' && settings.theme !== 'light' && settings.theme !== 'dark') { %>
+    <link rel="stylesheet" href="<%= settings.theme %>" id="theme-css">
+    <% } %>
+    <link rel="stylesheet" href="/vendor/@fontsource-variable/inter/index.css">
+    <link rel="stylesheet" href="/styles.css?v=5">
+    <style>
+      * { scrollbar-width: thin; scrollbar-color: var(--theme-border) transparent; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-thumb { background: var(--theme-border); border-radius: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      html, body { transition: background-color 0.25s ease-in, color 0.25s ease-in; margin: 0; padding: 0; }
+    </style>
+</head>
+<body style="font-family: 'Inter Variable'; background: var(--theme-bg); color: var(--theme-text);" class="h-full">
+
+<script nonce="<%- nonce %>" src="/javascript/shared/theme-init.js?v=1"></script>

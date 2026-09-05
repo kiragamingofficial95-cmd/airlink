@@ -1,0 +1,12 @@
+# Secrets
+.env
+*.env.local
+compose.env
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

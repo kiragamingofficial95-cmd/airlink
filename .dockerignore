@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/storage
+**/.git
+**/logs
+*.log
+*.md
+.gitignore
