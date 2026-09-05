@@ -131,6 +131,37 @@ ensure_bun() {
 # ----------------------------------------------------------------------------
 # Panel: PostgreSQL + Redis
 # ----------------------------------------------------------------------------
+PG_SOCK=""
+
+detect_pg_sock() {
+    for d in /var/run/postgresql /run/postgresql /var/run /tmp; do
+        if su postgres -c "pg_isready -h $d" >/dev/null 2>&1; then
+            PG_SOCK="$d"
+            ok "PostgreSQL socket found at $d"
+            return 0
+        fi
+    done
+    # fallback: TCP check
+    if pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
+        PG_SOCK="/var/run/postgresql"
+        ok "PostgreSQL accepting TCP connections on 127.0.0.1:5432"
+        return 0
+    fi
+    return 1
+}
+
+pg_psql() {
+    # Run psql as the postgres user using the detected socket dir
+    if [[ -n "$PG_SOCK" ]]; then
+        su postgres -c "psql -h $PG_SOCK $*"
+    else
+        # Last resort: try both common socket dirs
+        su postgres -c "psql -h /var/run/postgresql $*" 2>/dev/null \
+            || su postgres -c "psql -h /tmp $*" 2>/dev/null \
+            || su postgres -c "psql $*"
+    fi
+}
+
 start_pg() {
     # 1. real systemd (not a container)
     if [[ -d /run/systemd/system ]] && command -v systemctl &>/dev/null; then
@@ -147,9 +178,10 @@ start_pg() {
         [[ -n "$v" ]] && { pg_ctlcluster "$v" main start >/dev/null 2>&1; return 0; }
     fi
     # 4. raw pg_ctl
-    if command -v pg_ctl &>/dev/null && command -v pg_config &>/dev/null; then
-        local d; d=$(pg_config --sysconfdir 2>/dev/null)
-        su postgres -c "pg_ctl -D ${d%/}/../var/lib/postgresql/main -l /tmp/pg.log start" >/dev/null 2>&1 || true
+    if command -v pg_ctl &>/dev/null; then
+        local datadir
+        datadir=$(find /var/lib/postgresql -name PG_VERSION -maxdepth 3 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+        [[ -n "$datadir" ]] && su postgres -c "pg_ctl -D '$datadir' -l /tmp/pg.log start" >/dev/null 2>&1 || true
     fi
 }
 
@@ -170,12 +202,23 @@ setup_panel_db() {
 
     redis-cli ping >/dev/null 2>&1 || { info "Starting redis manually..."; redis-server --daemonize yes >/dev/null 2>&1 || true; }
 
+    # Detect which socket dir the server actually uses
     local pg_ok=0
     for i in $(seq 1 30); do
-        if su postgres -c "pg_isready" >/dev/null 2>&1; then pg_ok=1; break; fi
+        if detect_pg_sock; then pg_ok=1; break; fi
         sleep 1
     done
-    [[ $pg_ok -eq 1 ]] || die "PostgreSQL is not accepting connections. Start it manually, then re-run."
+    [[ $pg_ok -eq 1 ]] || {
+        echo
+        fail "PostgreSQL is not accepting connections."
+        info "Diagnostics:"
+        command -v pg_lsclusters &>/dev/null && pg_lsclusters 2>/dev/null || true
+        command -v pg_isready &>/dev/null && pg_isready -h 127.0.0.1 -p 5432 2>/dev/null || true
+        find /var/run /run /tmp -name ".s.PGSQL.*" 2>/dev/null || true
+        find /var/lib/postgresql -name pg_log 2>/dev/null | xargs -I{} ls -la {}/ 2>/dev/null || true
+        echo
+        die "Start PostgreSQL manually, then re-run the installer."
+    }
     ok "PostgreSQL + Redis ready"
 }
 
@@ -225,8 +268,14 @@ install_panel() {
     local db_pass; db_pass=$(openssl rand -hex 24)
     local ip; ip=$(hostname -I 2>/dev/null | awk '{print $1}'); [[ -z "$ip" ]] && ip="127.0.0.1"
 
-    su postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='airlink'\"" | grep -q 1 \
-        || su postgres -c "psql -c \"CREATE ROLE airlink WITH LOGIN PASSWORD '$db_pass' SUPERUSER\""
+    info "Configuring database..."
+    pg_psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='airlink'" 2>/dev/null | grep -q 1 \
+        || pg_psql -c "CREATE ROLE airlink WITH LOGIN PASSWORD '$db_pass' SUPERUSER"
+
+    pg_psql -tAc "SELECT 1 FROM pg_database WHERE datname='airlink'" 2>/dev/null | grep -q 1 \
+        || pg_psql -c "CREATE DATABASE airlink OWNER airlink"
+
+    pg_psql -c "GRANT ALL PRIVILEGES ON DATABASE airlink TO airlink" 2>/dev/null || true
 
     # Rewrite DATABASE_URL / REDIS_URL in .env to match what's actually installed
     replace_env() { # key value
